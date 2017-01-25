@@ -1,0 +1,17 @@
+[package]
+name = "hello_world"
+version = "0.1.0"
+authors = ["itsMontoya <josh@montoya.io>"]
+
+[dependencies]
+env_logger = "0.4.0"
+futures = "0.1.9"
+futures-cpupool = "*"
+serde = "*"
+serde_json = "*"
+serde_derive = "*"
+
+[dependencies.hyper]
+#git = "https://github.com/hyperium/hyper"
+git = "https://github.com/itsmontoya/hyper"
+branch = "implement_put_method"
