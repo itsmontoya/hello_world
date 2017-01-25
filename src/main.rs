@@ -72,9 +72,7 @@ impl Responder {
                 self.pool.spawn_fn(|| {
                     thread::sleep(time::Duration::from_millis(3000));
                     Ok(())
-                });
-
-                Ok(body_str)
+                })
             }))
     }
 }
