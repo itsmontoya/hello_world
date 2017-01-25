@@ -24,7 +24,10 @@ fn main() {
     let pool = CpuPool::new(4);
     let addr = "127.0.0.1:8080".parse().unwrap();
     let server = Http::new()
-        .bind(&addr, move || Ok(Responder {}))
+        .bind(&addr, move || {
+            let pc = pool.clone();
+            Ok(Responder { pool: pc })
+        })
         .unwrap();
 
     println!("Listening on http://{}", server.local_addr().unwrap());
@@ -33,7 +36,10 @@ fn main() {
 
 
 
-struct Responder {}
+struct Responder {
+    pool: CpuPool,
+}
+
 type ResponseFuture = ::futures::Finished<Response, hyper::Error>;
 
 impl Service for Responder {
@@ -53,6 +59,7 @@ impl Responder {
     fn handle_service(&self, req: Request) -> ResponseFuture {
         let body = req.body();
         let body_vec = Vec::new();
+
         body.fold(body_vec, |mut acc, chunk| {
                 acc.extend_from_slice(chunk.as_ref());
                 Ok::<Vec<u8>, hyper::Error>(acc)
@@ -62,7 +69,10 @@ impl Responder {
                 let body_str = String::from_utf8(body_vec).unwrap();
 
                 // Sleep for 3 seconds (to simulate a slow db request)
-                thread::sleep(time::Duration::from_millis(3000));
+                self.pool.spawn_fn(|| {
+                    thread::sleep(time::Duration::from_millis(3000));
+                    Ok(())
+                });
 
                 Ok(body_str)
             })
