@@ -149,45 +149,39 @@ impl Responder {
             .with_body(s.into_bytes()))
     }
 
-    fn put_service(&self, req: Request) -> Result {
-        let body = req.body();
-        let body_vec: Vec<u8> = Vec::new();
-        println!("{}", "About to call some shit");
-        let v = body.fold(body_vec, |mut acc, chunk| {
-                acc.extend_from_slice(chunk.as_ref());
-                println!("Extending");
-                Ok::<Vec<u8>, hyper::Error>(acc)
-            });
-            /*
-            .and_then(move |body_vec| {
-                // I know I'm using tons of unwrap here, I'll get proper error handling soon
-                let body_str = String::from_utf8(body_vec).unwrap();
-                println!("{}", body_str);
-                let nv: LBService = serde_json::from_str(&body_str).unwrap();
-                Ok(nv)
-            })
-            .and_then(|nv| {
-                let mut d = self.d.write().unwrap();
-                d.svc.greeting = nv.greeting;
-                d.svc.name = nv.name;
-                let res_str = String::from("{ \"success\" : true }");
-                Ok(Response::new()
-                    .with_status(hyper::StatusCode::Ok)
-                    .with_header(ContentLength(res_str.len() as u64))
-                    .with_header(ContentType::json())
-                    .with_body(res_str.into_bytes()))
-            });
-            */
-        //            .or_else(|e| {
-        //              // maybe handle different errors however you'd like
-        //            Ok(Response::new()
-        //          .with_status(hyper::StatusCode::BadRequest)
-        //        // or maybe StatusCode::InternalServerError
-        //      .with_body("something bad happened"))
-        // });
-        v.wait();
-        Err(String::from("Merrp"))
-    }
+   fn put_service(&self, req: Request) -> Self::Future {
+    let body = req.body();
+    let cap = req.headers.get::<ContentLength>().map(|len| (**len) as usize).unwrap_or(0);
+    let body_vec: Vec<u8> = Vec::with_capacity(cap);
+    let worker_queue = self.p.clone();
+    Box::new(body.fold(body_vec, |mut acc, chunk| {
+            acc.extend_from_slice(chunk.as_ref());
+            Ok::<Vec<u8>, hyper::Error>(acc)
+        })
+        .and_then(move |body_vec| {
+            // I know I'm using tons of unwrap here, I'll get proper error handling soon
+            let body_str = String::from_utf8(body_vec).unwrap();
+            let nv: LBService = serde_json::from_str(&body_str).unwrap();
+            let mut d = self.d.write().unwrap();
+            d.svc.greeting = nv.greeting;
+            d.svc.name = nv.name;
+            worker_queue.spawn(d)
+        })
+        .and_then(|worked| {
+            // maybe use the 'worked' value?
+            let res_str = String::from("{ \"success\" : true }");
+            Ok(Response::new()
+                .with_status(hyper::StatusCode::Ok)
+                .with_header(ContentLength(res_str.len() as u64))
+                .with_header(ContentType::json())
+                .with_body(res_str.into_bytes()))
+        .or_else(|e| {
+            // maybe handle different errors however you'd like
+            Ok(Response::new()
+                .with_status(hyper::StatusCode::BadRequest)
+                // or maybe StatusCode::InternalServerError
+                .with_body("something bad happened"))
+        }))
 }
 
 type Result = result::Result<Response, String>;
