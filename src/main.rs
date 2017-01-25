@@ -40,7 +40,7 @@ struct Responder {
     pool: CpuPool,
 }
 
-type ResponseFuture = ::futures::Finished<Response, hyper::Error>;
+type ResponseFuture = Box<Future<Item = Response, Error = hyper::Error>>;
 
 impl Service for Responder {
     type Request = Request;
@@ -60,7 +60,7 @@ impl Responder {
         let body = req.body();
         let body_vec = Vec::new();
 
-        body.fold(body_vec, |mut acc, chunk| {
+        Box::new(body.fold(body_vec, |mut acc, chunk| {
                 acc.extend_from_slice(chunk.as_ref());
                 Ok::<Vec<u8>, hyper::Error>(acc)
             })
@@ -75,6 +75,6 @@ impl Responder {
                 });
 
                 Ok(body_str)
-            })
+            }))
     }
 }
